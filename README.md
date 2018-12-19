@@ -23,26 +23,26 @@ Copy the .jar file from the ../target directory into the ../web-container/webapp
 
 ##  Configuration properties of the node
 #### Header containing Device ID
-    We assume that TLS termination takes place before hitting AM. Termination gateway needs to take CN from device certificate presented and put into a header.
+We assume that TLS termination takes place before hitting AM. Termination gateway needs to take CN from device certificate presented and put into a header.
 
 #### Azure Tenant ID
-   Tenant ID could be in a form of UUID-like string or actual tenant name eg. rocknnroll.onmicrosoft.com.
+Tenant ID could be in a form of UUID-like string or actual tenant name eg. rocknnroll.onmicrosoft.com.
 
 #### Azure App Registration Application ID
-    That is the name of the OAuth2 Client (application) that has been created, given privileges (scopes) to access API data.
+That is the name of the OAuth2 Client (application) that has been created, given privileges (scopes) to access API data.
 
 #### Azure App Registration Secret
-    Has to be created as part of application creation process. Keys -> Passwords section of app configuration.
+Has to be created as part of application creation process. Keys -> Passwords section of app configuration.
 
 #### Azure AD User Name
-    Intune administrative user name who consented to giving right to the app above.
+Intune administrative user name who consented to giving right to the app above.
 
 #### Azure AD User Password
-    Above user's password.
+Above user's password.
 
 #### Do you want to add Device Properties to Shared State
-    When accessing GraphApi we’re also extracting some of the most important device characteristics i.e. deviceName, deviceType, operatingSystem, osVersion,deviceRegistrationState, model, manufacturer, serialNumber.
-    If this option is enabled all of these characteristics will be put into shared state.
+When accessing GraphApi we’re also extracting some of the most important device characteristics i.e. deviceName, deviceType, operatingSystem, osVersion,deviceRegistrationState, model, manufacturer, serialNumber.
+If this option is enabled all of these characteristics will be put into shared state.
 
 Here's a sample tree with Intune node.
 
