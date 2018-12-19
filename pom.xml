@@ -24,8 +24,8 @@
 
     <groupId>org.rockroll</groupId>
     <version>1.0.0-SNAPSHOT</version>    
-    <name>Template for an Auth Tree Node maven project</name>
-    <description>An Authentication Tree Node for ForgeRock's Identity Platform</description>
+    <name>Microsoft Intune Node</name>
+    <description>Microsoft Intune integration Tree Node for ForgeRock's Identity Platform</description>
 
     <properties>
         <am.version>6.5.0</am.version>
