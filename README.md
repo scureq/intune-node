@@ -40,8 +40,17 @@ Copy the .jar file from the ../target directory into the ../web-container/webapp
 - Azure AD User Password
     >Above user's password.
 
-- Do you want to add Device Properties to Shared State
+- Extract Device Properties
     >When accessing GraphApi we’re also extracting some of the most important device characteristics i.e. deviceName, deviceType, operatingSystem, osVersion,deviceRegistrationState, model, manufacturer, serialNumber. If this option is enabled all of these characteristics will be put into shared state.
+    That information is: `deviceName`, `deviceType`, `operatingSystem`, `osVersion`, `deviceRegistrationState`, `model`, `manufacturer`, `serialNumber`
+   
+- Extract information about installed apps?
+    >If enabled apps installed on Mobile Device are extracted. Apps names can then be used below in Black List configuration. In addition 'blackListedAppPresent' property will be saved into Shared State.
+
+- Blacklisted apps
+    >If any of the blacklisted apps here will be found on connecting device then 'blackListedAppPresent' will be set to 'yes'. It will be set to 'no' otherwise. 
+    
+ 
 
 Here's a sample tree with Intune node.
 
