@@ -20,10 +20,7 @@ package org.rocknroll.intuneNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ResourceBundle;
+import java.util.*;
 import javax.inject.Inject;
 
 import com.google.common.collect.ImmutableList;
@@ -51,6 +48,7 @@ import org.forgerock.openam.auth.node.api.TreeContext;
 import org.forgerock.openam.core.realms.Realm;
 import org.forgerock.openam.sm.annotations.adapters.Password;
 import org.forgerock.util.i18n.PreferredLocales;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -74,6 +72,9 @@ public class IntuneNode implements Node {
     private static String access_token;
     private static String complianceResult;
     private static JSONObject deviceProperties;
+    private static ArrayList<String> devApps = new ArrayList<>();
+    private Set <String> appsBlackList;
+
 
     /**
      * Configuration for the node.
@@ -104,6 +105,11 @@ public class IntuneNode implements Node {
         @Attribute(order = 700)
         default boolean passDeviceInfo() {return true;}
 
+        @Attribute(order = 800)
+        default boolean extractApps() {return true;}
+
+        @Attribute(order = 900)
+        Set<String> appsBlackList();
 
     }
 
@@ -128,6 +134,7 @@ public class IntuneNode implements Node {
         debug.warning("[" + DEBUG_FILE + "]: Intune Node Started");
         Action.ActionBuilder action;
         JsonValue newState = context.sharedState.copy();
+
         boolean deviceIdInHeader = context.request.headers.containsKey(config.inTuneHeader());
         try {
             if (deviceIdInHeader){
@@ -136,17 +143,30 @@ public class IntuneNode implements Node {
                 roGrant();
                 checkCompliance();
                 debug.warning("[" + DEBUG_FILE + "]: Device Properties Length: " + deviceProperties.length());
+
+                /**
+                 * If app extraction is wanted then extract apps
+                 */
+
+                if (config.extractApps()) {
+                    extractApps();
+                    if (blacklistedAppsPresent(devApps)){
+                        newState.add("blackListedAppPresent","yes");
+                    } else {
+                        newState.add("blackListedAppPresent","no");
+                    };
+                }
                 /**
                  * If device properties are present and Share State storage has been enabled add them to Shared State
                  */
                 if (deviceProperties.length() > 0 && config.passDeviceInfo()){
                     debug.warning("[" + DEBUG_FILE + "]: Parsing Device Properties" );
                     Iterator<String> keys = deviceProperties.keys();
-                    newState = context.sharedState.copy();
+
                     while(keys.hasNext()) {
                         String key = keys.next();
                         String val = deviceProperties.getString(key);
-                        newState.put(key, val);
+                        newState.add(key, val);
                     }
                 }
                 /**
@@ -240,7 +260,7 @@ public class IntuneNode implements Node {
 
             JSONObject jsonObject = new JSONObject(content);
             access_token = jsonObject.getString("access_token");
-            debug.warning("[" + DEBUG_FILE + "]: Access_token: " + access_token);
+            //debug.warning("[" + DEBUG_FILE + "]: Access_token: " + access_token);
 
         } catch (IOException | JSONException e)
 
@@ -260,7 +280,7 @@ public class IntuneNode implements Node {
             HttpResponse response = httpClient.execute(request);
             HttpEntity entity = response.getEntity();
             String content = EntityUtils.toString(entity);
-            debug.warning("[" + DEBUG_FILE + "]: Device Status: " + content);
+            //debug.warning("[" + DEBUG_FILE + "]: Device Status: " + content);
 
             JSONObject jsonObject = new JSONObject(content);
 
@@ -310,6 +330,59 @@ public class IntuneNode implements Node {
         } catch (IOException | JSONException e) {
             complianceResult = "error";
             debug.warning("[" + DEBUG_FILE + "]: Something went wrong while inspecting device status endpoint: " + e);
+        }
+    }
+
+    private void extractApps() {
+        HttpClient httpClient = HttpClientBuilder.create().build();
+
+        try {
+            HttpGet request = new HttpGet("https://graph.microsoft.com/beta/deviceManagement/manageddevices/"+deviceId+"/detectedApps");
+            String bearerHeader = "Bearer " + access_token;
+            request.setHeader(HttpHeaders.AUTHORIZATION, bearerHeader);
+            HttpResponse response = httpClient.execute(request);
+            HttpEntity entity = response.getEntity();
+            String content = EntityUtils.toString(entity);
+            JSONObject jsonObject = new JSONObject(content);
+            //debug.warning("[" + DEBUG_FILE + "]: Device apps content: " + content);
+            /**
+             * Extract list of apps with versions.
+             */
+            JSONArray jsonArray = jsonObject.getJSONArray("value");
+
+            for (int i=0; i<jsonArray.length();i++){
+                //Store JSON objects in an array
+                //Get the index of the JSON object and print the value per index
+                JSONObject valueContents = (JSONObject)jsonArray.get(i);
+                String displayName = (String) valueContents.get("displayName");
+                devApps.add(displayName);
+            }
+            debug.warning("[" + DEBUG_FILE + "]: Device Array: " + devApps);
+
+
+        } catch (IOException | JSONException e) {
+            debug.warning("[" + DEBUG_FILE + "]: Something went wrong while extracting apps: " + e);
+        }
+    }
+
+
+    private boolean blacklistedAppsPresent(ArrayList jsonArray) throws JSONException {
+        appsBlackList = config.appsBlackList();
+        debug.warning("[" + DEBUG_FILE + "]: Blacklisted apps search started");
+        debug.warning("[" + DEBUG_FILE + "]: current list: " + config.appsBlackList().toString());
+        if (!Collections.disjoint(jsonArray, appsBlackList)) {
+            debug.warning("[" + DEBUG_FILE + "]: Blacklisted app found");
+            return true;
+        }
+//        for (int index = 0; index < jsonArray.length(); index++){
+//                if (jsonArray.getString(index).Intersect){
+//                    debug.warning("[" + DEBUG_FILE + "]: Blacklisted app found");
+//                    return true;
+//                }
+//            }
+        else {
+            debug.warning("[" + DEBUG_FILE + "]: NO Blacklisted app found");
+            return false;
         }
     }
 
