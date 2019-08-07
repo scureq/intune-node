@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
 import javax.inject.Inject;
-
 import com.google.common.collect.ImmutableList;
 import com.sun.identity.sm.RequiredValueValidator;
 
@@ -54,7 +53,6 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.sun.identity.shared.debug.Debug;
-
 import com.google.inject.assistedinject.Assisted;
 
 @Node.Metadata(outcomeProvider  =  IntuneNode.IntuneOutcomeProvider.class,
@@ -106,13 +104,19 @@ public class IntuneNode implements Node {
         default boolean passDeviceInfo() {return true;}
 
         @Attribute(order = 800)
-        default boolean extractApps() {return true;}
+        default boolean passDeviceInfoSession() {return true;}
 
         @Attribute(order = 900)
+        default String sessionPropertyName() {return "deviceProps";}
+
+
+        @Attribute(order = 1000)
+        default boolean extractApps() {return true;}
+
+        @Attribute(order = 1100)
         Set<String> appsBlackList();
 
     }
-
 
     /**
      * Create the node using Guice injection. Just-in-time bindings can be used to obtain instances of other classes
@@ -128,6 +132,8 @@ public class IntuneNode implements Node {
         this.realm = realm;
         this.coreWrapper = coreWrapper;
     }
+
+
 
     @Override
     public Action process(TreeContext context) throws NodeProcessException {
@@ -160,15 +166,22 @@ public class IntuneNode implements Node {
                  * If device properties are present and Share State storage has been enabled add them to Shared State
                  */
                 if (deviceProperties.length() > 0 && config.passDeviceInfo()){
-                    debug.warning("[" + DEBUG_FILE + "]: Parsing Device Properties" );
-                    Iterator<String> keys = deviceProperties.keys();
 
-                    while(keys.hasNext()) {
-                        String key = keys.next();
-                        String val = deviceProperties.getString(key);
-                        newState.add(key, val);
-                    }
+                    debug.warning("[" + DEBUG_FILE + "]: Parsing Device Properties - Save to Shared State" );
+
+//                    Iterator<String> keys = deviceProperties.keys();
+//
+//                    while(keys.hasNext()) {
+//                        String key = keys.next();
+//                        String val = deviceProperties.getString(key);
+//                        newState.add("INTUNE_"+key, val);
+//                    }
+
+                    newState.add("deviceProperties", deviceProperties.toString());
                 }
+
+
+
                 /**
                  * Evaluate device compliance check results to return certain outcome.
                  */
@@ -210,7 +223,11 @@ public class IntuneNode implements Node {
                 debug.warning("[" + DEBUG_FILE + "]: No device ID found: ");
                 action = goTo(IntuneNodeOutcome.NOID);
             }
+            if (deviceProperties.length() > 0 && config.passDeviceInfoSession()){
+                action.putSessionProperty(config.sessionPropertyName(), deviceProperties.toString());
+            }
             return action.replaceSharedState(newState).build();
+
         } catch (Exception e) {
             action = goTo(IntuneNodeOutcome.UNKNOWN);
             return action.replaceSharedState(newState).build();
@@ -233,6 +250,7 @@ public class IntuneNode implements Node {
         UNKNOWN,
         OTHER
     }
+
 
     private void roGrant(){
         HttpClient httpClient = HttpClientBuilder.create().build();
@@ -258,6 +276,7 @@ public class IntuneNode implements Node {
             HttpEntity entity = response.getEntity();
             String content = EntityUtils.toString(entity);
 
+
             JSONObject jsonObject = new JSONObject(content);
             access_token = jsonObject.getString("access_token");
             //debug.warning("[" + DEBUG_FILE + "]: Access_token: " + access_token);
@@ -269,7 +288,6 @@ public class IntuneNode implements Node {
             e.printStackTrace();
         }
     }
-
     private void checkCompliance(){
         HttpClient httpClient = HttpClientBuilder.create().build();
 
@@ -287,29 +305,61 @@ public class IntuneNode implements Node {
             /**
              * Extract some of device properties returned by Intune.
              */
-            String deviceManagementState = jsonObject.getString("managementState");
-            String intuneComplianceState = jsonObject.getString("complianceState");
+
+            // General
+            String deviceId = jsonObject.getString("id");; // device ID in Intune
             String deviceName = jsonObject.getString("deviceName");
             String deviceType = jsonObject.getString("deviceType");
-            String operatingSystem = jsonObject.getString("operatingSystem");
-            String osVersion = jsonObject.getString("osVersion");
-            String deviceRegistrationState = jsonObject.getString("deviceRegistrationState");
             String model = jsonObject.getString("model");
             String manufacturer = jsonObject.getString("manufacturer");
             String serialNumber = jsonObject.getString("serialNumber");
+
+            // OS
+            String operatingSystem = jsonObject.getString("operatingSystem");
+            String osVersion = jsonObject.getString("osVersion");
+
+
+            // Management
+            String deviceManagementState = jsonObject.getString("managementState");
+            String deviceRegistrationState = jsonObject.getString("deviceRegistrationState");
+            String isSupervised = jsonObject.getString("isSupervised");
+            String deviceEnrollmentType = jsonObject.getString("deviceEnrollmentType");
+            String managedDeviceOwnerType = jsonObject.getString("managedDeviceOwnerType");
+
+            // Compliance & security
+            String intuneComplianceState = jsonObject.getString("complianceState");
+            String jailBroken = jsonObject.getString("jailBroken");
+            String lostModeState = jsonObject.getString("lostModeState");
+            String isEncrypted = jsonObject.getString("isEncrypted");
+
+            // User or Owner related
+            String userPrincipalName = jsonObject.getString("userPrincipalName");
+            String userDisplayName =jsonObject.getString("userDisplayName");
+
 
             /**
              * Build new json out of these properties
              */
             deviceProperties = new JSONObject()
+                    .put("deviceId", deviceId)
                     .put("deviceName", deviceName)
                     .put("deviceType",deviceType)
+                    .put("model", model)
+                    .put("manufacturer", manufacturer)
+                    .put("serialNumber", serialNumber)
                     .put("operatingSystem", operatingSystem)
                     .put("osVersion",osVersion)
                     .put("deviceRegistrationState", deviceRegistrationState)
-                    .put("model", model)
-                    .put("manufacturer", manufacturer)
-                    .put("serialNumber", serialNumber);
+                    .put("deviceManagementState", deviceManagementState)
+                    .put("isSupervised", isSupervised)
+                    .put("deviceEnrollmentType", deviceEnrollmentType)
+                    .put("managedDeviceOwnerType", managedDeviceOwnerType)
+                    .put("ComplianceState", intuneComplianceState)
+                    .put("jailBroken", jailBroken)
+                    .put("lostModeState", lostModeState)
+                    .put("isEncrypted", isEncrypted)
+                    .put("userPrincipalName", userPrincipalName)
+                    .put("userDisplayName", userDisplayName);
 
 
             if (intuneComplianceState.equals("compliant")) {
